@@ -1,3 +1,4 @@
+import { verifyTelegramInitData } from './telegram-auth.js';
 import { Bot, InlineKeyboard } from 'grammy';
 import express from 'express';
 import { fileURLToPath } from 'url';
@@ -22,10 +23,7 @@ app.use(express.static(join(__dirname, '../web/dist')));
 // ==================== COMMANDS ====================
 
 bot.command('start', (ctx) => {
-  const webAppUrl = `${WEBAPP_URL}?tgWebAppData=${encodeURIComponent(JSON.stringify({
-    user: ctx.from,
-    start_param: ctx.match
-  }))}`;
+  const webAppUrl = WEBAPP_URL;
   
   const keyboard = new InlineKeyboard()
     .webApp('🚀 Открыть приложение', webAppUrl);
@@ -71,6 +69,13 @@ bot.command('profile', async (ctx) => {
 });
 
 // ==================== API ROUTES (Express) ====================
+
+// Validate signed Telegram Mini App launch data on the server.
+app.post('/api/auth/telegram', (req, res) => {
+  const user = verifyTelegramInitData(req.body?.initData, BOT_TOKEN);
+  if (!user) return res.status(401).json({ error: 'Invalid or expired Telegram authentication' });
+  return res.json({ user });
+});
 
 // User data endpoint
 app.get('/api/user/:id', (req, res) => {
