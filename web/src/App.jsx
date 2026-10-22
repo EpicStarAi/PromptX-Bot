@@ -29,20 +29,21 @@ function App() {
       tg.ready();
       tg.expand();
       
-      if (tg.initDataUnsafe?.user) {
-        setUser(tg.initDataUnsafe.user);
+      if (tg.initData) {
+        fetch('/api/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: tg.initData })
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error('Telegram authentication failed');
+            return response.json();
+          })
+          .then((data) => setUser(data.user))
+          .catch((error) => console.error(error.message));
       }
     }
     
-    // Parse URL params for user data (fallback)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tgData = urlParams.get('tgWebAppData');
-    if (tgData) {
-      try {
-        const parsed = JSON.parse(tgData);
-        if (parsed.user) setUser(parsed.user);
-      } catch {}
-    }
   }, []);
 
   // Navigation
