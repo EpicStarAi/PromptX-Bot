@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard } from 'grammy';
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { VIDEO_PRESETS, createVideoFromPrompt, createVideoVariants } from './api/hypit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,19 +44,6 @@ bot.command('start', (ctx) => {
   );
 });
 
-bot.command('help', (ctx) => {
-  ctx.reply(
-    `📖 *Справка*\n\n` +
-    `/start — Запустить бота\n` +
-    `/profile — Мой профиль\n` +
-    `/tokens — Баланс токенов\n` +
-    `/help — Эта справка\n\n` +
-    `💡 *Как пользоваться?*\n` +
-    `Нажми "Открыть приложение" в /start`,
-    { parse_mode: 'Markdown' }
-  );
-});
-
 // ==================== BUTTONS ====================
 
 bot.command('profile', async (ctx) => {
@@ -66,6 +54,127 @@ bot.command('profile', async (ctx) => {
     `👤 Имя: ${user.first_name} ${user.last_name || ''}\n` +
     `🔗 Username: @${user.username || 'нет'}\n\n` +
     `💎 Токены: *загрузка...*`,
+    { parse_mode: 'Markdown' }
+  );
+});
+
+// Video generation command
+bot.command('video', async (ctx) => {
+  const args = ctx.match;
+  
+  if (!args) {
+    // Show video presets
+    const presetsList = Object.entries(VIDEO_PRESETS)
+      .map(([key, preset]) => `• *${preset.name}* — ${preset.description}`)
+      .join('\n');
+    
+    await ctx.reply(
+      `🎬 *Генерация видео*\n\n` +
+      `Выбери формат и опиши что хочешь:\n\n` +
+      presetsList + `\n\n` +
+      `📝 *Пример:*\n` +
+      `/video tierlist Лучшие знаки зодиака для отношений`,
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+  
+  // Parse command
+  const parts = args.split(' ');
+  const preset = parts[0];
+  const prompt = parts.slice(1).join(' ');
+  
+  if (!prompt) {
+    ctx.reply('❌ Укажи описание видео после формата. Пример: /video tierlist Лучшие знаки зодиака');
+    return;
+  }
+  
+  await ctx.reply('🎬 Генерирую видео... (это может занять 1-2 минуты)');
+  
+  try {
+    const result = await createVideoFromPrompt(prompt, preset, ctx.from.id);
+    
+    if (result.success) {
+      await ctx.reply(
+        `✅ *Видео готово!*
+
+` +
+        `${result.variants?.length > 0 ? `📁 Файл: ${result.variants[0]}` : ''}
+` +
+        `${result.cost ? `💰 Примерная стоимость: $${result.cost}` : ''}`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await ctx.reply(`❌ Ошибка: ${result.error || 'Не удалось сгенерировать видео'}`);
+    }
+  } catch (error) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+// Quick video presets
+bot.command('tierlist', async (ctx) => {
+  const prompt = ctx.match || 'Интересные факты о знаках зодиака';
+  await ctx.reply(`🎬 Создаю тир-лист: "${prompt}" (может занять 1-2 минуты)`);
+  
+  try {
+    const result = await createVideoFromPrompt(prompt, 'tierList', ctx.from.id);
+    if (result.success) {
+      await ctx.reply(`✅ *Тир-лист готов!*\n${result.cost ? `💰 ~$${result.cost}` : ''}`);
+    } else {
+      await ctx.reply(`❌ Ошибка: ${result.error}`);
+    }
+  } catch (error) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+bot.command('debate', async (ctx) => {
+  const prompt = ctx.match || 'AI vs，人类艺术家';
+  await ctx.reply(`🎬 Создаю дебаты: "${prompt}" (может занять 1-2 минуты)`);
+  
+  try {
+    const result = await createVideoFromPrompt(prompt, 'debate', ctx.from.id);
+    if (result.success) {
+      await ctx.reply(`✅ *Дебаты готовы!*\n${result.cost ? `💰 ~$${result.cost}` : ''}`);
+    } else {
+      await ctx.reply(`❌ Ошибка: ${result.error}`);
+    }
+  } catch (error) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+bot.command('podcast', async (ctx) => {
+  const prompt = ctx.match || 'Влияние планет на судьбу';
+  await ctx.reply(`🎬 Создаю подкаст: "${prompt}" (может занять 1-2 минуты)`);
+  
+  try {
+    const result = await createVideoFromPrompt(prompt, 'podcast', ctx.from.id);
+    if (result.success) {
+      await ctx.reply(`✅ *Подкаст готов!*\n${result.cost ? `💰 ~$${result.cost}` : ''}`);
+    } else {
+      await ctx.reply(`❌ Ошибка: ${result.error}`);
+    }
+  } catch (error) {
+    await ctx.reply(`❌ Ошибка: ${error.message}`);
+  }
+});
+
+// Help update with video commands
+bot.command('help', (ctx) => {
+  ctx.reply(
+    `📖 *Справка*\n\n` +
+    `/start — Запустить бота\n` +
+    `/profile — Мой профиль\n` +
+    `/tokens — Баланс токенов\n` +
+    `/video [формат] [тема] — Создать видео\n` +
+    `/tierlist [тема] — Топ-лист\n` +
+    `/debate [тема] — Дебаты\n` +
+    `/podcast [тема] — Подкаст\n` +
+    `/help — Эта справка\n\n` +
+    `💡 *Как пользоваться?*\n` +
+    `Нажми "Открыть приложение" в /start`,
     { parse_mode: 'Markdown' }
   );
 });
