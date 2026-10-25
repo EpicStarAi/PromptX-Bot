@@ -6,7 +6,7 @@ const TABS = [
   { id: 'photo', label: 'По фото', icon: '📷' },
 ];
 
-export default function NeuralNetworks({ onNavigate, tokens, setTokens }) {
+export default function NeuralNetworks({ onNavigate, tokens, setTokens, addToHistory }) {
   const [activeTab, setActiveTab] = useState('generate');
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState(null);
@@ -23,6 +23,11 @@ export default function NeuralNetworks({ onNavigate, tokens, setTokens }) {
         image: null,
         prompt: prompt,
         message: 'Генерация готова! (демо-режим)'
+      });
+      addToHistory({
+        type: 'image',
+        title: prompt.slice(0, 40),
+        status: 'done'
       });
     } catch (err) {
       setResult({ error: err.message });
