@@ -9,7 +9,6 @@ import Create from './pages/Create';
 import History from './pages/History';
 import './App.css';
 
-// Pages enum
 const PAGES = {
   MAIN: 'main',
   NEURAL: 'neural',
@@ -26,20 +25,17 @@ function App() {
   const [user, setUser] = useState(null);
   const [tokens, setTokens] = useState(100);
   const [history, setHistory] = useState([]);
+  const [selectedPreset, setSelectedPreset] = useState(null);
 
-  // Init Telegram WebApp
   useEffect(() => {
     if (window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp;
       tg.ready();
       tg.expand();
-      
       if (tg.initDataUnsafe?.user) {
         setUser(tg.initDataUnsafe.user);
       }
     }
-    
-    // Parse URL params for user data (fallback)
     const urlParams = new URLSearchParams(window.location.search);
     const tgData = urlParams.get('tgWebAppData');
     if (tgData) {
@@ -48,25 +44,21 @@ function App() {
         if (parsed.user) setUser(parsed.user);
       } catch {}
     }
-    
-    // Load history from localStorage
     const savedHistory = localStorage.getItem('promptx_history');
     if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory));
-      } catch {}
+      try { setHistory(JSON.parse(savedHistory)); } catch {}
     }
   }, []);
 
-  // Save history to localStorage
   useEffect(() => {
     localStorage.setItem('promptx_history', JSON.stringify(history));
   }, [history]);
 
-  // Navigation
-  const navigate = (page) => setCurrentPage(page);
+  const navigate = (page) => {
+    if (page !== 'create') setSelectedPreset(null);
+    setCurrentPage(page);
+  };
 
-  // Add to history
   const addToHistory = (item) => {
     setHistory(prev => [{
       id: Date.now(),
@@ -75,7 +67,6 @@ function App() {
     }, ...prev]);
   };
 
-  // Render current page
   const renderPage = () => {
     switch (currentPage) {
       case PAGES.NEURAL:
@@ -87,9 +78,9 @@ function App() {
       case PAGES.FEED:
         return <Feed onNavigate={navigate} />;
       case PAGES.PRESETS:
-        return <Presets onNavigate={navigate} tokens={tokens} setTokens={setTokens} addToHistory={addToHistory} />;
+        return <Presets onNavigate={navigate} tokens={tokens} setSelectedPreset={setSelectedPreset} />;
       case PAGES.CREATE:
-        return <Create onNavigate={navigate} tokens={tokens} setTokens={setTokens} addToHistory={addToHistory} />;
+        return <Create onNavigate={navigate} tokens={tokens} setTokens={setTokens} addToHistory={addToHistory} selectedPreset={selectedPreset} />;
       case PAGES.HISTORY:
         return <History onNavigate={navigate} history={history} setHistory={setHistory} />;
       default:
@@ -101,7 +92,7 @@ function App() {
     { id: PAGES.MAIN, icon: '🏠', label: 'Главная' },
     { id: PAGES.FEED, icon: '📋', label: 'Лента' },
     { id: PAGES.CREATE, icon: '➕', label: 'Создать', primary: true },
-    { id: PAGES.ASTROLOGY, icon: '✨', label: 'Астро' },
+    { id: PAGES.PRESETS, icon: '✨', label: 'Пресеты' },
     { id: PAGES.HISTORY, icon: '🕐', label: 'История' },
     { id: PAGES.PROFILE, icon: '👤', label: 'Профиль' }
   ];
@@ -109,8 +100,6 @@ function App() {
   return (
     <div className="app">
       {renderPage()}
-      
-      {/* Bottom Navigation Bar */}
       <nav className="bottom-nav">
         {navItems.map(item => (
           <button
