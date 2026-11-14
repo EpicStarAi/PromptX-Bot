@@ -3,6 +3,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { VIDEO_PRESETS, createVideoFromPrompt, createVideoVariants } from './api/hypit.js';
+import { generateImage, chatCompletion } from './api/ai.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -65,7 +66,6 @@ bot.command('video', async (ctx) => {
   const args = ctx.match;
   
   if (!args) {
-    // Show video presets
     const presetsList = Object.entries(VIDEO_PRESETS)
       .map(([key, preset]) => `• *${preset.name}* — ${preset.description}`)
       .join('\n');
@@ -81,7 +81,6 @@ bot.command('video', async (ctx) => {
     return;
   }
   
-  // Parse command
   const parts = args.split(' ');
   const preset = parts[0];
   const prompt = parts.slice(1).join(' ');
@@ -114,7 +113,6 @@ bot.command('video', async (ctx) => {
   }
 });
 
-// Quick video presets
 bot.command('tierlist', async (ctx) => {
   const prompt = ctx.match || 'Интересные факты о знаках зодиака';
   await ctx.reply(`🎬 Создаю тир-лист: "${prompt}" (может занять 1-2 минуты)`);
@@ -132,7 +130,7 @@ bot.command('tierlist', async (ctx) => {
 });
 
 bot.command('debate', async (ctx) => {
-  const prompt = ctx.match || 'AI vs，人类艺术家';
+  const prompt = ctx.match || 'AI vs человек-художник';
   await ctx.reply(`🎬 Создаю дебаты: "${prompt}" (может занять 1-2 минуты)`);
   
   try {
@@ -163,7 +161,6 @@ bot.command('podcast', async (ctx) => {
   }
 });
 
-// Help update with video commands
 bot.command('help', (ctx) => {
   ctx.reply(
     `📖 *Справка*\n\n` +
@@ -183,7 +180,6 @@ bot.command('help', (ctx) => {
 
 // ==================== API ROUTES (Express) ====================
 
-// User data endpoint
 app.get('/api/user/:id', (req, res) => {
   res.json({
     id: req.params.id,
@@ -194,47 +190,77 @@ app.get('/api/user/:id', (req, res) => {
   });
 });
 
-// AI generation endpoint
+// Real OpenAI image generation
 app.post('/api/ai/generate', async (req, res) => {
-  // TODO: OpenAI integration
-  res.json({ success: false, error: 'Not implemented yet' });
+  try {
+    const { prompt, size = '1024x1024', quality = 'standard', style = 'vivid' } = req.body;
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ success: false, error: 'Prompt is required' });
+    }
+
+    const result = await generateImage(prompt.trim(), { size, quality, style });
+    res.json({
+      success: true,
+      url: result.url,
+      revisedPrompt: result.revisedPrompt
+    });
+  } catch (error) {
+    console.error('AI generate error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Generation failed'
+    });
+  }
 });
 
-// Astrology endpoints
+// Improve prompt via GPT
+app.post('/api/ai/improve-prompt', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ success: false, error: 'Prompt required' });
+
+    const result = await chatCompletion([
+      {
+        role: 'system',
+        content: 'Ты эксперт по промпт-инжинирингу. Улучши промпт пользователя: добавь детали, стиль, освещение, композицию. Ответ только улучшенный промпт, без лишних слов.'
+      },
+      { role: 'user', content: prompt }
+    ], { maxTokens: 300 });
+
+    res.json({ success: true, improved: result.content });
+  } catch (error) {
+    console.error('Improve prompt error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/astrology/natal', (req, res) => {
-  // TODO: Natal chart calculation
   res.json({ success: false, error: 'Not implemented yet' });
 });
 
 app.post('/api/astrology/compatibility', (req, res) => {
-  // TODO: Compatibility calculation
   res.json({ success: false, error: 'Not implemented yet' });
 });
 
 app.get('/api/astrology/horoscope', (req, res) => {
-  // TODO: Daily horoscope
   res.json({ success: false, error: 'Not implemented yet' });
 });
 
-// Token operations
 app.get('/api/tokens/balance/:userId', (req, res) => {
   res.json({ userId: req.params.userId, balance: 10 });
 });
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ==================== START SERVERS ====================
 
-// Start Express
 app.listen(PORT, () => {
   console.log(`🌐 Web server running on port ${PORT}`);
   console.log(`📱 WebApp URL: ${WEBAPP_URL}`);
 });
 
-// Start Telegram Bot (polling)
 bot.start({
   onStart: (info) => {
     console.log(`🤖 Bot started: @${info.username}`);
