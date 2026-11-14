@@ -25,6 +25,7 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory, se
   const [prompt, setPrompt] = useState(selectedPreset?.prompt || '');
   const [selectedTags, setSelectedTags] = useState(selectedPreset?.tags || []);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [resultUrl, setResultUrl] = useState(null);
 
   useEffect(() => {
     if (selectedPreset) {
@@ -62,31 +63,47 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory, se
       return;
     }
 
-    if (!selectedPreset && mode === 'template' && !selectedTemplate) {
-      alert('Выберите шаблон!');
-      return;
-    }
-
-    if (!selectedPreset && mode === 'scratch' && (!prompt.trim() || selectedTags.length === 0)) {
-      alert('Введите промпт и выберите теги!');
+    const finalPrompt = prompt.trim() || selectedPreset?.prompt || selectedTemplate?.name || '';
+    if (!finalPrompt) {
+      alert('Введите промпт');
       return;
     }
 
     setIsGenerating(true);
-    setTokens(prev => prev - cost);
+    setResultUrl(null);
 
-    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: finalPrompt, size: '1024x1024' })
+      });
 
-    addToHistory({
-      type: selectedPreset?.type || (mode === 'template' ? 'image' : 'image'),
-      title: selectedPreset?.name || (mode === 'template' ? selectedTemplate?.name : prompt.slice(0, 30)),
-      prompt: prompt || selectedPreset?.prompt,
-      status: 'done'
-    });
+      const data = await res.json();
 
-    setIsGenerating(false);
-    alert('🎉 Готово!');
-    onNavigate('history');
+      if (!data.success) {
+        throw new Error(data.error || 'Ошибка генерации');
+      }
+
+      setTokens(prev => prev - cost);
+      setResultUrl(data.url);
+
+      addToHistory({
+        type: 'image',
+        title: selectedPreset?.name || finalPrompt.slice(0, 40),
+        prompt: finalPrompt,
+        url: data.url,
+        revisedPrompt: data.revisedPrompt,
+        status: 'done'
+      });
+
+      alert('🎉 Готово!');
+    } catch (err) {
+      console.error(err);
+      alert('❌ ' + (err.message || 'Не удалось сгенерировать'));
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -194,6 +211,12 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory, se
             </>
           )}
         </>
+      )}
+
+      {resultUrl && (
+        <div style={{ margin: '16px 20px', borderRadius: 12, overflow: 'hidden' }}>
+          <img src={resultUrl} alt="Generated" style={{ width: '100%', display: 'block' }} />
+        </div>
       )}
 
       <button
