@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-// Templates for "By Template" mode
 const TEMPLATES = [
   { id: 1, name: 'Портрет', icon: '🖼️', price: 5 },
   { id: 2, name: 'Пейзаж', icon: '🏔️', price: 5 },
@@ -12,21 +11,28 @@ const TEMPLATES = [
   { id: 8, name: 'Иконки', icon: '📱', price: 4 }
 ];
 
-// Interests/Tags for "From Scratch" mode
 const INTERESTS = [
   'Природа', 'Город', 'Космос', 'Животные', 'Еда',
   'Спорт', 'Музыка', 'Путешествия', 'Мода', 'Технологии',
   'Искусство', 'Архитектура', 'Фотография', 'Гейминг', 'Кино'
 ];
 
-export default function Create({ onNavigate, tokens, setTokens, addToHistory }) {
-  const [mode, setMode] = useState('template'); // 'template' or 'scratch'
+export default function Create({ onNavigate, tokens, setTokens, addToHistory, selectedPreset }) {
+  const [mode, setMode] = useState(selectedPreset ? 'scratch' : 'template');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [prompt, setPrompt] = useState('');
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [prompt, setPrompt] = useState(selectedPreset?.prompt || '');
+  const [selectedTags, setSelectedTags] = useState(selectedPreset?.tags || []);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    if (selectedPreset) {
+      setMode('scratch');
+      setPrompt(selectedPreset.prompt || '');
+      setSelectedTags(selectedPreset.tags || []);
+    }
+  }, [selectedPreset]);
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
@@ -39,29 +45,29 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory }) 
   };
 
   const toggleTag = (tag) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
   };
 
   const handleGenerate = async () => {
-    const cost = mode === 'template' 
-      ? (selectedTemplate?.price || 5)
-      : 10;
+    const cost = selectedPreset
+      ? selectedPreset.cost
+      : mode === 'template'
+        ? (selectedTemplate?.price || 5)
+        : 10;
 
     if (tokens < cost) {
       alert('❌ Недостаточно токенов!');
       return;
     }
 
-    if (mode === 'template' && !selectedTemplate) {
+    if (!selectedPreset && mode === 'template' && !selectedTemplate) {
       alert('Выберите шаблон!');
       return;
     }
 
-    if (mode === 'scratch' && (!prompt.trim() || selectedTags.length === 0)) {
+    if (!selectedPreset && mode === 'scratch' && (!prompt.trim() || selectedTags.length === 0)) {
       alert('Введите промпт и выберите теги!');
       return;
     }
@@ -69,59 +75,63 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory }) 
     setIsGenerating(true);
     setTokens(prev => prev - cost);
 
-    // Simulate generation
     await new Promise(r => setTimeout(r, 2000));
 
     addToHistory({
-      type: 'image',
-      title: mode === 'template' ? selectedTemplate.name : prompt.slice(0, 30),
-      template: selectedTemplate,
-      tags: selectedTags,
+      type: selectedPreset?.type || (mode === 'template' ? 'image' : 'image'),
+      title: selectedPreset?.name || (mode === 'template' ? selectedTemplate?.name : prompt.slice(0, 30)),
+      prompt: prompt || selectedPreset?.prompt,
       status: 'done'
     });
 
     setIsGenerating(false);
-    alert('🎉 Изображение успешно создано!');
+    alert('🎉 Готово!');
     onNavigate('history');
   };
 
   return (
     <div className="page fade-in">
-      {/* Header */}
       <div className="page-header">
         <button className="back-btn" onClick={() => onNavigate('main')}>←</button>
-        <span className="page-title">Создать</span>
+        <span className="page-title">{selectedPreset ? selectedPreset.name : 'Создать'}</span>
         <div className="header-tokens">
           <span className="coin"></span>
           {tokens}
         </div>
       </div>
 
-      {/* Mode Toggle */}
-      <div className="create-modes">
-        <button 
-          className={`create-mode-btn ${mode === 'template' ? 'active' : ''}`}
-          onClick={() => setMode('template')}
-        >
-          <span className="create-mode-btn-icon">📋</span>
-          По шаблону
-        </button>
-        <button 
-          className={`create-mode-btn ${mode === 'scratch' ? 'active' : ''}`}
-          onClick={() => setMode('scratch')}
-        >
-          <span className="create-mode-btn-icon">✨</span>
-          С нуля
-        </button>
-      </div>
+      {selectedPreset && (
+        <div style={{ margin: '12px 20px', padding: 12, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--gold-dark)' }}>
+          <div style={{ fontSize: 13, color: 'var(--gold)', marginBottom: 4 }}>Пресет: {selectedPreset.emoji} {selectedPreset.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Стоимость: {selectedPreset.cost} 💎</div>
+        </div>
+      )}
 
-      {/* Template Mode */}
-      {mode === 'template' && (
+      {!selectedPreset && (
+        <div className="create-modes">
+          <button
+            className={`create-mode-btn ${mode === 'template' ? 'active' : ''}`}
+            onClick={() => setMode('template')}
+          >
+            <span className="create-mode-btn-icon">📋</span>
+            По шаблону
+          </button>
+          <button
+            className={`create-mode-btn ${mode === 'scratch' ? 'active' : ''}`}
+            onClick={() => setMode('scratch')}
+          >
+            <span className="create-mode-btn-icon">✨</span>
+            С нуля
+          </button>
+        </div>
+      )}
+
+      {mode === 'template' && !selectedPreset && (
         <>
           <div className="section-title">Выберите шаблон</div>
           <div className="template-grid">
             {TEMPLATES.map(template => (
-              <div 
+              <div
                 key={template.id}
                 className={`template-card ${selectedTemplate?.id === template.id ? 'selected' : ''}`}
                 onClick={() => setSelectedTemplate(template)}
@@ -138,19 +148,11 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory }) 
             {photoPreview ? (
               <div className="photo-preview">
                 <img src={photoPreview} alt="Preview" />
-                <div className="photo-remove" onClick={() => {
-                  setPhoto(null);
-                  setPhotoPreview(null);
-                }}>✕</div>
+                <div className="photo-remove" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>✕</div>
               </div>
             ) : (
               <label className="photo-upload-area">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handlePhotoUpload}
-                  style={{ display: 'none' }}
-                />
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
                 <div className="photo-upload-icon">📷</div>
                 <div className="photo-upload-text">Нажмите для загрузки</div>
                 <div className="photo-upload-hint">JPG, PNG до 10MB</div>
@@ -160,66 +162,60 @@ export default function Create({ onNavigate, tokens, setTokens, addToHistory }) 
         </>
       )}
 
-      {/* Scratch Mode */}
-      {mode === 'scratch' && (
+      {(mode === 'scratch' || selectedPreset) && (
         <>
           <div className="input-group">
-            <label className="input-label">Ваш промпт</label>
+            <label className="input-label">Промпт</label>
             <textarea
               className="input-field"
-              placeholder="Опишите изображение, которое хотите создать..."
+              placeholder="Опишите, что хотите создать..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={4}
             />
           </div>
 
-          <div className="section-title">Выберите интересы</div>
-          <div className="tags-container">
-            <div className="tags-grid">
-              {INTERESTS.map(tag => (
-                <button
-                  key={tag}
-                  className={`tag-chip ${selectedTags.includes(tag) ? 'selected' : ''}`}
-                  onClick={() => toggleTag(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </div>
+          {!selectedPreset && (
+            <>
+              <div className="section-title">Выберите интересы</div>
+              <div className="tags-container">
+                <div className="tags-grid">
+                  {INTERESTS.map(tag => (
+                    <button
+                      key={tag}
+                      className={`tag-chip ${selectedTags.includes(tag) ? 'selected' : ''}`}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
 
-      {/* Generate Button */}
-      <button 
+      <button
         className="btn-primary"
         style={{ position: 'fixed', bottom: 90, left: 20, right: 20, width: 'auto', maxWidth: 440 }}
         onClick={handleGenerate}
         disabled={isGenerating}
       >
-        {isGenerating 
-          ? '⏳ Генерация...' 
-          : mode === 'template'
-            ? `🎨 Создать${selectedTemplate ? ` (-${selectedTemplate.price} 💎)` : ''}`
-            : `✨ Создать (-10 💎)`
+        {isGenerating
+          ? '⏳ Генерация...'
+          : `🎨 Создать (-${selectedPreset?.cost || (mode === 'template' ? selectedTemplate?.price || 5 : 10)} 💎)`
         }
       </button>
 
-      {/* Loading overlay */}
       {isGenerating && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 999
         }}>
           <div style={{ fontSize: 64, marginBottom: 16 }}>🎨</div>
-          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Создаём шедевр...</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Создаём...</div>
           <div style={{ color: 'var(--text-secondary)' }}>Это займёт несколько секунд</div>
         </div>
       )}
